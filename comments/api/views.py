@@ -38,7 +38,7 @@ class CommentViewSet(viewsets.GenericViewSet):
 
         comment = serializer.save()
         return Response(
-            CommentSerializer(comment).data,
+            CommentSerializer(comment, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -53,7 +53,7 @@ class CommentViewSet(viewsets.GenericViewSet):
 
         updated_comment = serializer.save()
         return Response(
-            CommentSerializer(updated_comment).data,
+            CommentSerializer(updated_comment, context={'request': request}).data,
             status=status.HTTP_200_OK,
         )
 
@@ -69,7 +69,11 @@ class CommentViewSet(viewsets.GenericViewSet):
     def list(self, request):
         queryset = self.get_queryset()
         comments = self.filter_queryset(queryset).order_by('created_at')
-        serializer = CommentSerializer(comments, many=True)
+        serializer = CommentSerializer(
+            comments,
+            many=True,
+            context={'request': request},
+        )
         return Response(
             {'comments': serializer.data},
             status=status.HTTP_200_OK,
