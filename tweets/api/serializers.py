@@ -49,7 +49,8 @@ class TweetSerializerForCreate(serializers.ModelSerializer):
 
 
 class TweetSerializerForDetail(TweetSerializer):
-    comments = CommentSerializer(source='comment_set', many=True)
+    # comments = CommentSerializer(source='comment_set', many=True)
+    comments = serializers.SerializerMethodField()
     likes = LikeSerializer(source='like_set', many=True)
 
     class Meta:
@@ -65,3 +66,13 @@ class TweetSerializerForDetail(TweetSerializer):
             'comments',
             'likes',
         )
+
+    def get_comments(self, obj):
+        queryset = obj.comment_set.all().order_by('created_at')
+        serializer = CommentSerializer(
+            queryset,
+            many=True,
+            context=self.context,
+        )
+        return serializer.data
+
