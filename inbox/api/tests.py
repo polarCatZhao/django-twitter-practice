@@ -7,6 +7,7 @@ LIKE_URL = '/api/likes/'
 NOTIFICATION_URL = '/api/notifications/'
 NOTIFICATION_UNREAD_COUNT_URL = '/api/notifications/unread-count/'
 NOTIFICATION_MARK_ALL_AS_READ_URL = '/api/notifications/mark-all-as-read/'
+NOTIFICATION_UPDATE_URL = '/api/notifications/{}/'
 
 
 class NotificationTests(TestCase):
@@ -115,3 +116,44 @@ class NotificationApiTests(TestCase):
         self.assertEqual(response.data['count'], 1)
         response = self.linghu_client.get(NOTIFICATION_URL, {'unread': False})
         self.assertEqual(response.data['count'], 1)
+
+    def test_update(self):
+        self.dongxie_client.post(LIKE_URL, {
+            'content_type': 'tweet',
+            'object_id': self.linghu_tweet.id,
+        })
+        comment = self.create_comment(self.linghu, self.linghu_tweet)
+        self.dongxie_client.post(LIKE_URL, {
+            'content_type': 'comment',
+            'object_id': comment.id,
+        })
+        notification = self.linghu.notifications.first()
+
+        url = NOTIFICATION_UPDATE_URL.format(notification.id)
+        # post is not allowed, put is required
+        response = self.linghu_client.post(url, {'unread': False})
+        self.assertEqual(response.status_code, 405)
+        # non-recipient cannot update notifications
+        response = self.anonymous_client.put(url, {'unread': False})
+        self.assertEqual(response.status_code, 403)
+        # because the queryset is created based on the current user,
+        # so it will return 404 instead of 403
+        response = self.dongxie_client.put(url, {'unread': False})
+        self.assertEqual(response.status_code, 404)
+        # succeed in marking it as read
+        response = self.linghu_client.put(url, {'unread': False})
+        self.assertEqual(response.status_code, 200)
+        response = self.linghu_client.get(NOTIFICATION_UNREAD_COUNT_URL)
+        self.assertEqual(response.data['unread_count'], 1)
+        # mark it as unread again
+        response = self.linghu_client.put(url, {'unread': True})
+        response = self.linghu_client.get(NOTIFICATION_UNREAD_COUNT_URL)
+        self.assertEqual(response.data['unread_count'], 2)
+        # the unread key has to be included
+        response = self.linghu_client.put(url, {'verb': 'newverb'})
+        self.assertEqual(response.status_code, 400)
+        # cannot modify other fields
+        response = self.linghu_client.put(url, {'verb': 'newverb', 'unread': False})
+        self.assertEqual(response.status_code, 200)
+        notification.refresh_from_db()
+        self.assertNotEqual(notification.verb, 'newverb')
