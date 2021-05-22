@@ -4,11 +4,11 @@ from comments.models import Comment
 from tweets.models import Tweet
 from rest_framework.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
-from accounts.api.serializers import UserSerializer
+from accounts.api.serializers import UserSerializerForLike
 
 
 class LikeSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    user = UserSerializerForLike()
 
     class Meta:
         model = Like
