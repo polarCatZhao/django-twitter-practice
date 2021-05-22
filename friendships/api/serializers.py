@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from friendships.models import Friendship
 from rest_framework.exceptions import ValidationError
-from accounts.api.serializers import UserSerializer
+from accounts.api.serializers import UserSerializerForFriendship
 
 
 class FriendshipSerializerForCreate(serializers.ModelSerializer):
@@ -29,7 +29,7 @@ class FriendshipSerializerForCreate(serializers.ModelSerializer):
 
 
 class FollowingSerializer(serializers.ModelSerializer):
-    user = UserSerializer(source='to_user')
+    user = UserSerializerForFriendship(source='to_user')
 
     class Meta:
         model = Friendship
@@ -37,7 +37,7 @@ class FollowingSerializer(serializers.ModelSerializer):
 
 
 class FollowerSerializer(serializers.ModelSerializer):
-    user = UserSerializer(source='from_user')
+    user = UserSerializerForFriendship(source='from_user')
 
     class Meta:
         model = Friendship
