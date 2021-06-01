@@ -30,7 +30,11 @@ class TestCase(DjangoTestCase):
         return Tweet.objects.create(user=user, content=content)
 
     def create_newsfeed(self, user, tweet):
-        return NewsFeed.objects.create(user=user, tweet=tweet)
+        return NewsFeed.objects.create(
+            user=user,
+            tweet=tweet,
+            created_at=tweet.created_at,
+        )
 
     def create_comment(self, user, tweet, content=None):
         if content is None:

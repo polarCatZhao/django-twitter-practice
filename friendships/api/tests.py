@@ -7,6 +7,8 @@ FOLLOW_URL = '/api/friendships/{}/follow/'
 UNFOLLOW_URL = '/api/friendships/{}/unfollow/'
 FOLLOWERS_URL = '/api/friendships/{}/followers/'
 FOLLOWINGS_URL = '/api/friendships/{}/followings/'
+NEWSFEED_URL = '/api/newsfeeds/'
+POST_TWEET_URL = '/api/tweets/'
 
 
 class FriendshipApiTests(TestCase):
@@ -27,6 +29,14 @@ class FriendshipApiTests(TestCase):
         for i in range(3):
             following = self.create_user('dongxie_following{}'.format(i))
             Friendship.objects.create(from_user=self.dongxie, to_user=following)
+
+        self.john, self.john_client = self.create_user_and_client('john')
+        self.teresa, self.teresa_client = self.create_user_and_client('teresa')
+
+        self.john_tweets = [
+            self.create_tweet(self.john)
+            for _ in range(2)
+        ]
 
     def test_follow(self):
         url = FOLLOW_URL.format(self.linghu.id)
@@ -128,3 +138,45 @@ class FriendshipApiTests(TestCase):
             response.data['followers'][1]['user']['username'],
             'dongxie_follower0',
         )
+
+    def test_follow_inject_newsfeeds(self):
+        # at first, Teresa's newsfeeds is empty
+        response = self.teresa_client.get(NEWSFEED_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 0)
+
+        # Teresa followed John
+        response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
+        self.assertEqual(response.status_code, 201)
+
+        # John's tweets are injected to Teresa's newsfeeds
+        response = self.teresa_client.get(NEWSFEED_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 2)
+        self.assertEqual(
+            response.data['newsfeeds'][0]['tweet']['id'],
+            self.john_tweets[1].id,
+        )
+        self.assertEqual(
+            response.data['newsfeeds'][1]['tweet']['id'],
+            self.john_tweets[0].id,
+        )
+
+    def test_unfollow_remove_newsfeeds(self):
+        # Teresa followed John
+        response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
+        self.assertEqual(response.status_code, 201)
+
+        # John posted a tweet
+        response = self.john_client.post(POST_TWEET_URL, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+
+        # Teresa's newsfeed should have 3 tweets
+        response = self.teresa_client.get(NEWSFEED_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 3)
+
+        # Teresa unfollowed John
+        response = self.teresa_client.post(UNFOLLOW_URL.format(self.john.id))
+        self.assertEqual(response.status_code, 200)
+
+        # Teresa's newsfeed should be empty
+        response = self.teresa_client.get(NEWSFEED_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 0)
