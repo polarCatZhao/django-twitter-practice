@@ -8,6 +8,7 @@ from friendships.api.serializers import (
 )
 from rest_framework.response import Response
 from friendships.models import Friendship
+from newsfeeds.services import NewsFeedService
 
 
 class FriendshipViewSet(viewsets.GenericViewSet):
@@ -31,6 +32,7 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         instance = serializer.save()
+        NewsFeedService.inject_newsfeeds(request.user.id, pk)
         return Response(FollowingSerializer(instance).data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=True, permission_classes=[IsAuthenticated])
@@ -45,6 +47,7 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             from_user=request.user,
             to_user=pk,
         ).delete()
+        NewsFeedService.remove_newsfeeds(request.user.id, pk)
         return Response({'success': True, 'deleted': deleted}, status=status.HTTP_200_OK)
 
     @action(methods=['GET'], detail=True, permission_classes=[AllowAny])
