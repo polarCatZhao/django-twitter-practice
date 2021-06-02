@@ -154,3 +154,37 @@ class TweetApiTests(TestCase):
         profile = self.user1.profile
         self.assertEqual(response.data['user']['nickname'], profile.nickname)
         self.assertEqual(response.data['user']['avatar_url'], None)
+
+    def test_create_retweet(self):
+        # post a tweet without including the field {retweet_from_id}
+        response = self.user1_client.post(TWEET_CREATE_API, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['retweet_from'], None)
+
+        # post a tweet with invalid retweet_from_id
+        response = self.user1_client.post(TWEET_CREATE_API, {
+            'content': 'nothing',
+            'retweet_from_id': -1,
+        })
+        self.assertEqual(response.status_code, 400)
+
+        # post a tweet with valid retweet_from_id
+        response = self.user1_client.post(TWEET_CREATE_API, {
+            'content': 'nothing',
+            'retweet_from_id': self.tweets1[0].id,
+        })
+        self.assertEqual(response.status_code, 201)
+        self.assertNotEqual(response.data['retweet_from'], None)
+        self.assertEqual(response.data['retweet_from']['id'], self.tweets1[0].id)
+
+    def test_retrieve_retweet(self):
+        # post a tweet with valid retweet_from_id
+        response = self.user1_client.post(TWEET_CREATE_API, {
+            'content': 'nothing',
+            'retweet_from_id': self.tweets1[0].id,
+        })
+        tweet_id = response.data['id']
+
+        # retrieve this tweet
+        response = self.anonymous_client.get(TWEET_RETRIEVE_API.format(tweet_id))
+        self.assertEqual(response.data['retweet_from']['id'], self.tweets1[0].id)
