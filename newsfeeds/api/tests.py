@@ -52,3 +52,143 @@ class NewsFeedApiTests(TestCase):
         response = self.linghu_client.get(NEWSFEEDS_URL)
         self.assertEqual(len(response.data['newsfeeds']), 2)
         self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], posted_tweet_id)
+
+class NewsFeedPushPlusPullApiTests(TestCase):
+
+    def setUp(self):
+        self.user1, self.user1_client = self.create_user_and_client('john')
+        self.user2, self.user2_client = self.create_user_and_client('teresa')
+        self.star1, self.star1_client = self.create_user_and_client('star1')
+        self.star1.profile.is_superstar = True
+        self.star1.profile.save()
+        self.star2, self.star2_client = self.create_user_and_client('star2')
+        self.star2.profile.is_superstar = True
+        self.star2.profile.save()
+
+    def test_push_plus_pull_model(self):
+        # user1 followed user2, star2
+        # star1 followed user2, star2
+        response = self.user1_client.post(FOLLOW_URL.format(self.user2.id))
+        self.assertEqual(response.status_code, 201)
+        self.user1_client.post(FOLLOW_URL.format(self.star2.id))
+        self.star1_client.post(FOLLOW_URL.format(self.user2.id))
+        self.star1_client.post(FOLLOW_URL.format(self.star2.id))
+
+        # test the newsfeeds of user1
+        # user2 posts a tweet
+        response = self.user2_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+        tweet_id1 = response.data['id']
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id1).exists(),
+            True,
+        )
+        response = self.user1_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id1)
+
+        # star2 posts a tweet
+        response = self.star2_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+        tweet_id2 = response.data['id']
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id2).exists(),
+            False,
+        )
+        response = self.user1_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 2)
+        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id2)
+
+        # user1 herself posts a tweet
+        response = self.user1_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+        tweet_id3 = response.data['id']
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id3).exists(),
+            True,
+        )
+        response = self.user1_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 3)
+        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id3)
+
+        # user2 can only see her own tweet in her newsfeeds
+        response = self.user2_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(
+            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            self.user2.id,
+        )
+
+        # star2 can only see her own tweet in her newsfeeds
+        response = self.star2_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(
+            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            self.star2.id,
+        )
+
+        # test the newsfeeds of star1
+        # user2's tweet was pushed to star1
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.star1, tweet_id=tweet_id1).exists(),
+            True,
+        )
+        # star2's tweet was not pushed to star1
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.star1, tweet_id=tweet_id2).exists(),
+            False,
+        )
+        # star1 can see the tweets of user2 and star2 in her newsfeeds
+        response = self.star1_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 2)
+        self.assertEqual(
+            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            self.star2.id,
+        )
+        self.assertEqual(
+            response.data['newsfeeds'][1]['tweet']['user']['id'],
+            self.user2.id,
+        )
+
+        # star1 posts a tweet
+        response = self.star1_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        self.assertEqual(response.status_code, 201)
+        tweet_id4 = response.data['id']
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.star1, tweet_id=tweet_id4).exists(),
+            False,
+        )
+        response = self.star1_client.get(NEWSFEEDS_URL)
+        self.assertEqual(len(response.data['newsfeeds']), 3)
+        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id4)
+
+    def test_inject_newsfeeds_when_follow(self):
+        # user2 and star2 tweeted
+        response = self.user2_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        tweet_id1 = response.data['id']
+        response = self.star2_client.post(POST_TWEETS_URL, {'content': 'nothing'})
+        tweet_id2 = response.data['id']
+
+        # When user1 followed user2,
+        # user2's tweets will be injected to user1's newsfeeds.
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id1).exists(),
+            False,
+        )
+        response = self.user1_client.post(FOLLOW_URL.format(self.user2.id))
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id1).exists(),
+            True,
+        )
+
+        # When user1 followed star2,
+        # star2's tweets will not be injected to user1's newsfeeds.
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id2).exists(),
+            False,
+        )
+        response = self.user1_client.post(FOLLOW_URL.format(self.star2.id))
+        self.assertEqual(
+            NewsFeed.objects.filter(user=self.user1, tweet_id=tweet_id2).exists(),
+            False,
+        )
