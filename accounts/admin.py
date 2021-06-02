@@ -13,6 +13,7 @@ class UserProfileAdmin(admin.ModelAdmin):
         'avatar',
         'created_at',
         'updated_at',
+        'is_superstar',
     )
     date_hierarchy = 'created_at'
 
