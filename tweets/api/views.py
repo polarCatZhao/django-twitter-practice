@@ -9,11 +9,13 @@ from tweets.api.serializers import (
 )
 from newsfeeds.services import NewsFeedService
 from utils.decorators import required_params
+from utils.paginations import EndlessPagination
 
 
 class TweetViewSet(viewsets.GenericViewSet):
     serializer_class = TweetSerializerForCreate
     queryset = Tweet.objects.all()
+    pagination_class = EndlessPagination
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -32,12 +34,13 @@ class TweetViewSet(viewsets.GenericViewSet):
         tweets = Tweet.objects.filter(
             user_id=request.query_params['user_id']
         ).order_by('-created_at')
+        tweets = self.paginate_queryset(tweets)
         serializer = TweetSerializer(
             tweets,
             many=True,
             context={'request': request},
         )
-        return Response({'tweets': serializer.data})
+        return self.get_paginated_response(serializer.data)
 
     def create(self, request):
         serializer = TweetSerializerForCreate(
