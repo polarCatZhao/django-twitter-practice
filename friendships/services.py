@@ -21,3 +21,12 @@ class FriendshipService:
             to_user__userprofile__is_superstar=True,
         ).prefetch_related('to_user')
         return [friendship.to_user for friendship in friendships]
+
+    @classmethod
+    def has_followed(cls, from_user, to_user):
+        if from_user.is_anonymous:
+            return False
+        return Friendship.objects.filter(
+            from_user=from_user,
+            to_user=to_user,
+        ).exists()
