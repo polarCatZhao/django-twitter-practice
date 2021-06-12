@@ -37,7 +37,6 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         instance = serializer.save()
-        FriendshipService.invalidate_following_cache(request.user.id)
         NewsFeedService.inject_newsfeeds(request.user.id, pk)
         return Response(
             FollowingSerializer(instance, context={'request': request}).data,
@@ -56,7 +55,6 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             from_user=request.user,
             to_user=pk,
         ).delete()
-        FriendshipService.invalidate_following_cache(request.user.id)
         NewsFeedService.remove_newsfeeds(request.user.id, pk)
         return Response({'success': True, 'deleted': deleted}, status=status.HTTP_200_OK)
 
