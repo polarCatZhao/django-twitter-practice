@@ -13,6 +13,7 @@ FOLLOW_URL = '/api/friendships/{}/follow/'
 class NewsFeedApiTests(TestCase):
 
     def setUp(self):
+        self.clear_cache()
         self.linghu = self.create_user('linghu')
         self.linghu_client = APIClient()
         self.linghu_client.force_authenticate(self.linghu)
@@ -109,10 +110,46 @@ class NewsFeedApiTests(TestCase):
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['id'], new_newsfeed.id)
 
+    def test_user_cache(self):
+        # create dongxie's profile in database and load it in cache
+        profile = self.dongxie.profile
+        profile.nickname = 'huanglaoxie'
+        # invalidate profile cache
+        profile.save()
+
+        self.assertEqual(self.linghu.username, 'linghu')
+        self.create_newsfeed(self.dongxie, self.create_tweet(self.linghu))
+        self.create_newsfeed(self.dongxie, self.create_tweet(self.dongxie))
+
+        # get linghu user: from db, get linghu profile: from db
+        # get dongxie user: from db, get dongxie profile: from db
+        response = self.dongxie_client.get(NEWSFEEDS_URL)
+        results = response.data['results']
+        self.assertEqual(results[0]['tweet']['user']['username'], 'dongxie')
+        self.assertEqual(results[0]['tweet']['user']['nickname'], 'huanglaoxie')
+        self.assertEqual(results[1]['tweet']['user']['username'], 'linghu')
+
+        self.linghu.username = 'linghuchong'
+        # invalidate cached linghu
+        self.linghu.save()
+        profile.nickname = 'huangyaoshi'
+        # invalidate cached dongxie' profile
+        profile.save()
+        # cache: linghu profile, dongxie user
+
+        # get linghu user: from db, get linghu profile: from cache
+        # get dongxie user: from cache, get dongxie profile: from db
+        response = self.dongxie_client.get(NEWSFEEDS_URL)
+        results = response.data['results']
+        self.assertEqual(results[0]['tweet']['user']['username'], 'dongxie')
+        self.assertEqual(results[0]['tweet']['user']['nickname'], 'huangyaoshi')
+        self.assertEqual(results[1]['tweet']['user']['username'], 'linghuchong')
+
 
 class NewsFeedPushPlusPullApiTests(TestCase):
 
     def setUp(self):
+        self.clear_cache()
         self.user1, self.user1_client = self.create_user_and_client('john')
         self.user2, self.user2_client = self.create_user_and_client('teresa')
         self.star1, self.star1_client = self.create_user_and_client('star1')

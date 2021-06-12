@@ -31,7 +31,7 @@ class CommentSerializerForCreate(serializers.ModelSerializer):
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    user = UserSerializerForComment()
+    user = UserSerializerForComment(source='cached_user')
     # this does not work
     # likes_count = serializers.IntegerField(source='like_set.count()')
     likes_count = serializers.SerializerMethodField()
