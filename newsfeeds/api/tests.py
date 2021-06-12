@@ -1,7 +1,8 @@
-from newsfeeds.models import NewsFeed
 from friendships.models import Friendship
+from newsfeeds.models import NewsFeed
 from rest_framework.test import APIClient
 from testing.testcases import TestCase
+from utils.paginations import EndlessPagination
 
 
 NEWSFEEDS_URL = '/api/newsfeeds/'
@@ -38,11 +39,11 @@ class NewsFeedApiTests(TestCase):
         # 一开始啥都没有
         response = self.linghu_client.get(NEWSFEEDS_URL)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data['newsfeeds']), 0)
+        self.assertEqual(len(response.data['results']), 0)
         # 自己发的信息是可以看到的
         self.linghu_client.post(POST_TWEETS_URL, {'content': 'Hello World'})
         response = self.linghu_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(len(response.data['results']), 1)
         # 关注之后可以看到别人发的
         self.linghu_client.post(FOLLOW_URL.format(self.dongxie.id))
         response = self.dongxie_client.post(POST_TWEETS_URL, {
@@ -50,8 +51,64 @@ class NewsFeedApiTests(TestCase):
         })
         posted_tweet_id = response.data['id']
         response = self.linghu_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 2)
-        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], posted_tweet_id)
+        self.assertEqual(len(response.data['results']), 2)
+        self.assertEqual(response.data['results'][0]['tweet']['id'], posted_tweet_id)
+
+    def test_pagination(self):
+        page_size = EndlessPagination.page_size
+        followed_user = self.create_user('followed')
+        newsfeeds = []
+        for i in range(page_size * 2):
+            tweet = self.create_tweet(followed_user)
+            newsfeed = self.create_newsfeed(user=self.linghu, tweet=tweet)
+            newsfeeds.append(newsfeed)
+
+        newsfeeds = newsfeeds[::-1]
+
+        # pull the first page
+        response = self.linghu_client.get(NEWSFEEDS_URL)
+        self.assertEqual(response.data['has_next_page'], True)
+        self.assertEqual(len(response.data['results']), page_size)
+        self.assertEqual(response.data['results'][0]['id'], newsfeeds[0].id)
+        self.assertEqual(response.data['results'][1]['id'], newsfeeds[1].id)
+        self.assertEqual(
+            response.data['results'][page_size - 1]['id'],
+            newsfeeds[page_size - 1].id,
+        )
+
+        # pull the second page
+        response = self.linghu_client.get(NEWSFEEDS_URL, {
+            'created_at__lt': newsfeeds[page_size - 1].created_at,
+        })
+        self.assertEqual(response.data['has_next_page'], False)
+        results = response.data['results']
+        self.assertEqual(len(results), page_size)
+        self.assertEqual(results[0]['id'], newsfeeds[page_size].id)
+        self.assertEqual(results[1]['id'], newsfeeds[page_size + 1].id)
+        self.assertEqual(
+            results[page_size - 1]['id'],
+            newsfeeds[2 * page_size - 1].id,
+        )
+
+        # pull latest newsfeeds
+        response = self.linghu_client.get(
+            NEWSFEEDS_URL,
+            {'created_at__gt': newsfeeds[0].created_at},
+        )
+        self.assertEqual(response.data['has_next_page'], False)
+        self.assertEqual(len(response.data['results']), 0)
+
+        tweet = self.create_tweet(followed_user)
+        new_newsfeed = self.create_newsfeed(user=self.linghu, tweet=tweet)
+
+        response = self.linghu_client.get(
+            NEWSFEEDS_URL,
+            {'created_at__gt': newsfeeds[0].created_at},
+        )
+        self.assertEqual(response.data['has_next_page'], False)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['id'], new_newsfeed.id)
+
 
 class NewsFeedPushPlusPullApiTests(TestCase):
 
@@ -84,8 +141,8 @@ class NewsFeedPushPlusPullApiTests(TestCase):
             True,
         )
         response = self.user1_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 1)
-        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id1)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['tweet']['id'], tweet_id1)
 
         # star2 posts a tweet
         response = self.star2_client.post(POST_TWEETS_URL, {'content': 'nothing'})
@@ -96,8 +153,8 @@ class NewsFeedPushPlusPullApiTests(TestCase):
             False,
         )
         response = self.user1_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 2)
-        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id2)
+        self.assertEqual(len(response.data['results']), 2)
+        self.assertEqual(response.data['results'][0]['tweet']['id'], tweet_id2)
 
         # user1 herself posts a tweet
         response = self.user1_client.post(POST_TWEETS_URL, {'content': 'nothing'})
@@ -108,22 +165,22 @@ class NewsFeedPushPlusPullApiTests(TestCase):
             True,
         )
         response = self.user1_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 3)
-        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id3)
+        self.assertEqual(len(response.data['results']), 3)
+        self.assertEqual(response.data['results'][0]['tweet']['id'], tweet_id3)
 
         # user2 can only see her own tweet in her newsfeeds
         response = self.user2_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(
-            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            response.data['results'][0]['tweet']['user']['id'],
             self.user2.id,
         )
 
         # star2 can only see her own tweet in her newsfeeds
         response = self.star2_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 1)
+        self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(
-            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            response.data['results'][0]['tweet']['user']['id'],
             self.star2.id,
         )
 
@@ -140,13 +197,13 @@ class NewsFeedPushPlusPullApiTests(TestCase):
         )
         # star1 can see the tweets of user2 and star2 in her newsfeeds
         response = self.star1_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 2)
+        self.assertEqual(len(response.data['results']), 2)
         self.assertEqual(
-            response.data['newsfeeds'][0]['tweet']['user']['id'],
+            response.data['results'][0]['tweet']['user']['id'],
             self.star2.id,
         )
         self.assertEqual(
-            response.data['newsfeeds'][1]['tweet']['user']['id'],
+            response.data['results'][1]['tweet']['user']['id'],
             self.user2.id,
         )
 
@@ -159,8 +216,8 @@ class NewsFeedPushPlusPullApiTests(TestCase):
             False,
         )
         response = self.star1_client.get(NEWSFEEDS_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 3)
-        self.assertEqual(response.data['newsfeeds'][0]['tweet']['id'], tweet_id4)
+        self.assertEqual(len(response.data['results']), 3)
+        self.assertEqual(response.data['results'][0]['tweet']['id'], tweet_id4)
 
     def test_inject_newsfeeds_when_follow(self):
         # user2 and star2 tweeted

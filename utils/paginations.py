@@ -1,5 +1,11 @@
+from datetime import datetime
 from rest_framework.pagination import BasePagination
 from rest_framework.response import Response
+import pytz
+import operator
+
+
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
 
 
 class EndlessPagination(BasePagination):
@@ -32,3 +38,49 @@ class EndlessPagination(BasePagination):
             'has_next_page': self.has_next_page,
             'results': data,
         })
+
+
+class ListForPagination:
+    """
+    Wraps a list to make it look like a QuerySet so that it can be used in
+    pagination.
+    """
+
+    def __init__(self, a_list):
+        self._list = a_list
+
+    def filter(self, created_at__gt=None, created_at__lt=None):
+        if created_at__gt is not None:
+            datetime_string = created_at__gt
+            compare_function = operator.__gt__
+        elif created_at__lt is not None:
+            datetime_string = created_at__lt
+            compare_function = operator.__lt__
+        datetime_string = datetime_string.split('+')[0]
+        datetime_object = datetime.strptime(datetime_string, DATETIME_FORMAT)
+        datetime_object = datetime_object.replace(tzinfo=pytz.utc)
+        filtered_list = list(filter(
+            lambda x: compare_function(x.created_at, datetime_object),
+            self._list,
+        ))
+        return ListForPagination(filtered_list)
+
+    def order_by(self, key='-created_at'):
+        reverse = key.startswith('-')
+        key = key.strip('-')
+        sorted_list = list(sorted(
+            self._list,
+            key=lambda x: getattr(x, key),
+            reverse=reverse,
+        ))
+        return ListForPagination(sorted_list)
+
+    def __getitem__(self, item):
+        start, stop, step = item.start, item.stop, item.step
+        return ListForPagination(self._list[start:stop:step])
+
+    def __len__(self):
+        return len(self._list)
+
+    def to_list(self):
+        return list(self._list)

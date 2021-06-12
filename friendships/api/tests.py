@@ -143,7 +143,7 @@ class FriendshipApiTests(TestCase):
     def test_follow_inject_newsfeeds(self):
         # at first, Teresa's newsfeeds is empty
         response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 0)
+        self.assertEqual(len(response.data['results']), 0)
 
         # Teresa followed John
         response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
@@ -151,13 +151,13 @@ class FriendshipApiTests(TestCase):
 
         # John's tweets are injected to Teresa's newsfeeds
         response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 2)
+        self.assertEqual(len(response.data['results']), 2)
         self.assertEqual(
-            response.data['newsfeeds'][0]['tweet']['id'],
+            response.data['results'][0]['tweet']['id'],
             self.john_tweets[1].id,
         )
         self.assertEqual(
-            response.data['newsfeeds'][1]['tweet']['id'],
+            response.data['results'][1]['tweet']['id'],
             self.john_tweets[0].id,
         )
 
@@ -172,7 +172,7 @@ class FriendshipApiTests(TestCase):
 
         # Teresa's newsfeed should have 3 tweets
         response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 3)
+        self.assertEqual(len(response.data['results']), 3)
 
         # Teresa unfollowed John
         response = self.teresa_client.post(UNFOLLOW_URL.format(self.john.id))
@@ -180,7 +180,7 @@ class FriendshipApiTests(TestCase):
 
         # Teresa's newsfeed should be empty
         response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['newsfeeds']), 0)
+        self.assertEqual(len(response.data['results']), 0)
 
     def test_followers_pagination(self):
         max_page_size = FriendshipPagination.max_page_size
