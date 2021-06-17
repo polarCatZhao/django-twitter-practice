@@ -46,3 +46,8 @@ class RedisHelper:
             return
         serialized_data = DjangoModelSerializer.serialize(obj)
         conn.lpush(key, serialized_data)
+
+    @classmethod
+    def invalidate_cache(cls, key):
+        conn = RedisClient.get_connection()
+        conn.delete(key)

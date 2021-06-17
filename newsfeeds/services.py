@@ -1,7 +1,9 @@
-from newsfeeds.models import NewsFeed
-from friendships.services import FriendshipService
-from tweets.models import Tweet
 from django.contrib.auth.models import User
+from friendships.services import FriendshipService
+from newsfeeds.models import NewsFeed
+from tweets.models import Tweet
+from twitter.cache import USER_NEWSFEEDS_PATTERN
+from utils.redis_helper import RedisHelper
 
 
 class NewsFeedService:
@@ -22,6 +24,10 @@ class NewsFeedService:
         ))
         NewsFeed.objects.bulk_create(newsfeeds)
 
+        # bulk create 不会触发 post_save 的 signal， 所以需要手动 push 到 cache 里
+        for newsfeed in newsfeeds:
+            cls.push_newsfeed_to_cache(newsfeed)
+
     @classmethod
     def inject_newsfeeds(cls, user_id, followed_user_id):
         followed_user = User.objects.filter(id=followed_user_id).first()
@@ -33,6 +39,10 @@ class NewsFeedService:
             for tweet in tweets
         ]
         NewsFeed.objects.bulk_create(newsfeeds)
+
+        # invalidate redis cache
+        key = USER_NEWSFEEDS_PATTERN.format(user_id=user_id)
+        RedisHelper.invalidate_cache(key)
 
     @classmethod
     def remove_newsfeeds(cls, user_id, followed_user_id):
@@ -51,6 +61,10 @@ class NewsFeedService:
             user_id=user_id,
             tweet_id__in=tweet_ids,
         ).delete()
+
+        # invalidate redis cache
+        key = USER_NEWSFEEDS_PATTERN.format(user_id=user_id)
+        RedisHelper.invalidate_cache(key)
 
     @classmethod
     def get_superstar_newsfeeds(cls, user):
@@ -97,3 +111,15 @@ class NewsFeedService:
             j += 1
 
         return feeds
+
+    @classmethod
+    def get_cached_newsfeeds(cls, user_id):
+        queryset = NewsFeed.objects.filter(user_id=user_id).order_by('-created_at')
+        key = USER_NEWSFEEDS_PATTERN.format(user_id=user_id)
+        return RedisHelper.load_objects(key, queryset)
+
+    @classmethod
+    def push_newsfeed_to_cache(cls, newsfeed):
+        queryset = NewsFeed.objects.filter(user_id=newsfeed.user_id).order_by('-created_at')
+        key = USER_NEWSFEEDS_PATTERN.format(user_id=newsfeed.user_id)
+        RedisHelper.push_object(key, newsfeed, queryset)
