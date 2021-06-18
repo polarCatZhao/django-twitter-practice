@@ -2,6 +2,9 @@ from comments.models import Comment
 from django.utils import timezone
 from rest_framework.test import APIClient
 from testing.testcases import TestCase
+from tweets.models import Tweet
+from utils.redis_client import RedisClient
+from utils.redis_helper import RedisHelper
 
 
 COMMENT_URL = '/api/comments/'
@@ -160,3 +163,133 @@ class CommentApiTests(TestCase):
         response = self.dongxie_client.get(NEWSFEED_LIST_API)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['results'][0]['tweet']['comments_count'], 2)
+
+    def test_comments_count_with_cache_by_me(self):
+        """
+        Tests the comments_count separately cached at redis.
+        """
+        conn = RedisClient.get_connection()
+        key = RedisHelper.get_count_key(self.tweet, 'comments_count')
+        # at first, comments_count is 0
+        # view level
+        response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})
+        self.assertEqual(response.data['results'][0]['comments_count'], 0)
+        # redis_helper level
+        self.clear_cache()
+        self.assertEqual(RedisHelper.get_count(self.tweet, 'comments_count'), 0)
+        # data level: cache miss, load count from tweet table's comments_count field in
+        # database
+        self.clear_cache()
+        self.assertEqual(conn.exists(key), False)
+        self.assertEqual(Tweet.objects.get(id=self.tweet.id).comments_count, 0)
+        RedisHelper.get_count(self.tweet, 'comments_count')
+        self.assertEqual(conn.exists(key), True)
+        self.assertEqual(int(conn.get(key)), 0)
+
+        # dongxie commented the tweet, comments_count is 1, cache hit
+        self.assertEqual(conn.exists(key), True)
+        self.dongxie_client.post(COMMENT_URL, {
+            'tweet_id': self.tweet.id,
+            'content': 'hey',
+        })
+        self.assertEqual(self.tweet.comment_set.count(), 1)
+        # data level, cache hit
+        self.assertEqual(conn.exists(key), True)
+        self.assertEqual(int(conn.get(key)), 1)
+        # data level, cache miss
+        self.clear_cache()
+        RedisHelper.get_count(self.tweet, 'comments_count')
+        self.assertEqual(int(conn.get(key)), 1)
+        # view level, cache hit
+        response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})
+        self.assertEqual(response.data['results'][0]['comments_count'], 1)
+        # view level, cache miss
+        self.clear_cache()
+        response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})
+        self.assertEqual(response.data['results'][0]['comments_count'], 1)
+
+        # data consistency when two comments are created almost at the same time (cache hit)
+        self.assertEqual(conn.exists(key), True)
+        self.dongxie_client.post(COMMENT_URL, {
+            'tweet_id': self.tweet.id,
+            'content': 'hey2',
+        })
+        self.dongxie_client.post(COMMENT_URL, {
+            'tweet_id': self.tweet.id,
+            'content': 'hey3',
+        })
+        self.assertEqual(self.tweet.comment_set.count(), 3)
+        # data level, cache hit
+        self.assertEqual(int(conn.get(key)), 3)
+        # data level, cache miss
+        self.clear_cache()
+        RedisHelper.get_count(self.tweet, 'comments_count')
+        self.assertEqual(int(conn.get(key)), 3)
+        # view level, cache hit
+        self.assertEqual(conn.exists(key), True)
+        response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})
+        self.assertEqual(response.data['results'][0]['comments_count'], 3)
+        # view level, cache miss
+        self.clear_cache()
+        self.assertEqual(conn.exists(key), False)
+        response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})
+        self.assertEqual(response.data['results'][0]['comments_count'], 3)
+
+        # data consistency after many comments are created very fast (cache hit)
+        self.assertEqual(conn.exists(key), True)
+        for i in range(30):
+            self.dongxie_client.post(COMMENT_URL, {
+                'tweet_id': self.tweet.id,
+                'content': f'hey{i}',
+            })
+        self.assertEqual(self.tweet.comment_set.count(), 33)
+        self.assertEqual(int(conn.get(key)), 33)
+        # cache miss
+        self.clear_cache()
+        self.assertEqual(conn.exists(key), False)
+        RedisHelper.get_count(self.tweet, 'comments_count')
+        self.assertEqual(conn.exists(key), True)
+        self.assertEqual(int(conn.get(key)), 33)
+
+    def test_comments_count_with_cache(self):
+        tweet_url = TWEET_DETAIL_API.format(self.tweet.id)
+        response = self.linghu_client.get(tweet_url)
+        self.assertEqual(self.tweet.comments_count, 0)
+        self.assertEqual(response.data['comments_count'], 0)
+
+        data = {'tweet_id': self.tweet.id, 'content': 'a comment'}
+        for i in range(2):
+            _, client = self.create_user_and_client(f'user{i}')
+            client.post(COMMENT_URL, data)
+            response = client.get(tweet_url)
+            self.assertEqual(response.data['comments_count'], i + 1)
+            self.tweet.refresh_from_db()
+            self.assertEqual(self.tweet.comments_count, i + 1)
+
+        comment_data = self.dongxie_client.post(COMMENT_URL, data).data
+        response = self.dongxie_client.get(tweet_url)
+        self.assertEqual(response.data['comments_count'], 3)
+        self.tweet.refresh_from_db()
+        self.assertEqual(self.tweet.comments_count, 3)
+
+        # update comment shouldn't update comments_count
+        comment_url = '{}{}/'.format(COMMENT_URL, comment_data['id'])
+        response = self.dongxie_client.put(comment_url, {'content': 'updated'})
+        self.assertEqual(response.status_code, 200)
+        response = self.dongxie_client.get(tweet_url)
+        self.assertEqual(response.data['comments_count'], 3)
+        self.tweet.refresh_from_db()
+        self.assertEqual(self.tweet.comments_count, 3)
+
+        # delete a comment will update comments_count
+        response = self.dongxie_client.delete(comment_url)
+        self.assertEqual(response.status_code, 200)
+        response = self.linghu_client.get(tweet_url)
+        self.assertEqual(response.data['comments_count'], 2)
+        self.tweet.refresh_from_db()
+        self.assertEqual(self.tweet.comments_count, 2)
+
+        # clear cache and then test again
+        self.clear_cache()
+        response = self.linghu_client.get(tweet_url)
+        self.assertEqual(response.data['comments_count'], 2)
