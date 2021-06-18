@@ -20,6 +20,9 @@ class Tweet(models.Model):
         on_delete=models.SET_NULL,
     )
 
+    likes_count = models.IntegerField(default=0, null=True)
+    comments_count = models.IntegerField(default=0, null=True)
+
     class Meta:
         index_together = (('user', 'created_at'),)
         ordering = ('user', '-created_at')
