@@ -1,4 +1,5 @@
 from utils.memcached_helper import MemcachedHelper
+from utils.redis_helper import RedisHelper
 
 
 def incr_likes_count(sender, instance, created, **kwargs):
@@ -15,6 +16,8 @@ def incr_likes_count(sender, instance, created, **kwargs):
 
     Tweet.objects.filter(id=instance.object_id).update(likes_count=F('likes_count') + 1)
     MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
+    tweet = instance.content_object
+    RedisHelper.incr_count(tweet, 'likes_count')
 
 
 def decr_likes_count(sender, instance, **kwargs):
@@ -29,3 +32,5 @@ def decr_likes_count(sender, instance, **kwargs):
     # handle tweet likes cancel
     Tweet.objects.filter(id=instance.object_id).update(likes_count=F('likes_count') - 1)
     MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
+    tweet = instance.content_object
+    RedisHelper.decr_count(tweet, 'likes_count')

@@ -55,3 +55,44 @@ class RedisHelper:
     def invalidate_cache(cls, key):
         conn = RedisClient.get_connection()
         conn.delete(key)
+
+    @classmethod
+    def get_count_key(cls, obj, attr):
+        return '{}.{}:{}'.format(obj.__class__.__name__, attr, obj.id)
+
+    @classmethod
+    def _load_count_to_cache(cls, obj, attr, key, conn):
+        obj.refresh_from_db()
+        count = getattr(obj, attr)
+        conn.set(key, count)
+        conn.expire(key, settings.REDIS_KEY_EXPIRE_TIME)
+        return count
+
+    @classmethod
+    def incr_count(cls, obj, attr):
+        conn = RedisClient.get_connection()
+        key = cls.get_count_key(obj, attr)
+        if not conn.exists(key):
+            cls._load_count_to_cache(obj, attr, key, conn)
+            return
+        return conn.incr(key)
+
+    @classmethod
+    def decr_count(cls, obj, attr):
+        conn = RedisClient.get_connection()
+        key = cls.get_count_key(obj, attr)
+        if not conn.exists(key):
+            cls._load_count_to_cache(obj, attr, key, conn)
+            return
+        return conn.decr(key)
+
+    @classmethod
+    def get_count(cls, obj, attr):
+        conn = RedisClient.get_connection()
+        key = cls.get_count_key(obj, attr)
+        count = conn.get(key)
+        if count is not None:
+            return int(count)
+
+        count = cls._load_count_to_cache(obj, attr, key, conn)
+        return count

@@ -219,3 +219,42 @@ class LikeApiTests(TestCase):
         self.assertEqual(tweet.likes_count, 0)
         response = self.dongxie_client.get(tweet_url)
         self.assertEqual(response.data['likes_count'], 0)
+
+    def test_likes_count_with_cache(self):
+        tweet = self.create_tweet(self.linghu)
+        self.create_newsfeed(self.linghu, tweet)
+        self.create_newsfeed(self.dongxie, tweet)
+
+        data = {'content_type': 'tweet', 'object_id': tweet.id}
+        tweet_url = TWEET_DETAIL_API.format(tweet.id)
+        for i in range(3):
+            _, client = self.create_user_and_client(f'someone{i}')
+            client.post(LIKE_BASE_URL, data)
+            # check tweet api
+            response = client.get(tweet_url)
+            self.assertEqual(response.data['likes_count'], i + 1)
+            tweet.refresh_from_db()
+            self.assertEqual(tweet.likes_count, i + 1)
+
+        self.dongxie_client.post(LIKE_BASE_URL, data)
+        response = self.dongxie_client.get(tweet_url)
+        self.assertEqual(response.data['likes_count'], 4)
+        tweet.refresh_from_db()
+        self.assertEqual(tweet.likes_count, 4)
+
+        # check newsfeed api
+        response = self.linghu_client.get(NEWSFEED_LIST_API)
+        self.assertEqual(response.data['results'][0]['tweet']['likes_count'], 4)
+        response = self.dongxie_client.get(NEWSFEED_LIST_API)
+        self.assertEqual(response.data['results'][0]['tweet']['likes_count'], 4)
+
+        # dongxie canceled likes
+        self.dongxie_client.post(LIKE_CANCEL_URL, data)
+        tweet.refresh_from_db()
+        self.assertEqual(tweet.likes_count, 3)
+        response = self.dongxie_client.get(tweet_url)
+        self.assertEqual(response.data['likes_count'], 3)
+        response = self.linghu_client.get(NEWSFEED_LIST_API)
+        self.assertEqual(response.data['results'][0]['tweet']['likes_count'], 3)
+        response = self.dongxie_client.get(NEWSFEED_LIST_API)
+        self.assertEqual(response.data['results'][0]['tweet']['likes_count'], 3)

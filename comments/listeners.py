@@ -1,4 +1,5 @@
 from utils.memcached_helper import MemcachedHelper
+from utils.redis_helper import RedisHelper
 
 
 def incr_comments_count(sender, instance, created, **kwargs):
@@ -12,6 +13,7 @@ def incr_comments_count(sender, instance, created, **kwargs):
     Tweet.objects.filter(id=instance.tweet_id)\
         .update(comments_count=F('comments_count') + 1)
     MemcachedHelper.invalidate_cached_object(Tweet, instance.tweet_id)
+    RedisHelper.incr_count(instance.tweet, 'comments_count')
 
 
 def decr_comments_count(sender, instance, **kwargs):
@@ -22,3 +24,4 @@ def decr_comments_count(sender, instance, **kwargs):
     Tweet.objects.filter(id=instance.tweet_id)\
         .update(comments_count=F('comments_count') - 1)
     MemcachedHelper.invalidate_cached_object(Tweet, instance.tweet_id)
+    RedisHelper.decr_count(instance.tweet, 'comments_count')
