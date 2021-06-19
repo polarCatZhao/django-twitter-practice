@@ -15,9 +15,13 @@ def incr_likes_count(sender, instance, created, **kwargs):
         return
 
     Tweet.objects.filter(id=instance.object_id).update(likes_count=F('likes_count') + 1)
-    MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
+    # It's not necessary to invalidate cached tweet in memcached
+    # because likes_count will come from the separately cached counts in redis.
+    # MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
     tweet = instance.content_object
     RedisHelper.incr_count(tweet, 'likes_count')
+    # correct denormalized counts only appear in 2 places:
+    # tweet table and separately cached counts in redis
 
 
 def decr_likes_count(sender, instance, **kwargs):
@@ -31,6 +35,8 @@ def decr_likes_count(sender, instance, **kwargs):
 
     # handle tweet likes cancel
     Tweet.objects.filter(id=instance.object_id).update(likes_count=F('likes_count') - 1)
-    MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
+    # It's not necessary to invalidate cached tweet in memcached
+    # because likes_count will come from the separately cached counts in redis.
+    # MemcachedHelper.invalidate_cached_object(Tweet, instance.object_id)
     tweet = instance.content_object
     RedisHelper.decr_count(tweet, 'likes_count')

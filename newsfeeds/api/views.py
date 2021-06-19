@@ -10,6 +10,9 @@ class NewsFeedViewSet(viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = EndlessPagination
 
+    def get_queryset(self):
+        return NewsFeed.objects.filter(user_id=self.request.user.id)
+
     def list(self, request):
         normal_feeds = NewsFeedService.get_cached_newsfeeds(request.user.id)
         superstar_feeds = NewsFeedService.get_superstar_newsfeeds(request.user)
