@@ -65,7 +65,9 @@ class RedisHelper:
         obj.refresh_from_db()
         count = getattr(obj, attr)
         conn.set(key, count)
-        conn.expire(key, settings.REDIS_KEY_EXPIRE_TIME)
+        # We wish the counts to exist in redis forever.
+        # It does not take up to much space anyway.
+        # conn.expire(key, settings.REDIS_KEY_EXPIRE_TIME)
         return count
 
     @classmethod
