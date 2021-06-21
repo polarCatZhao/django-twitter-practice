@@ -57,8 +57,8 @@ class RedisHelper:
         conn.delete(key)
 
     @classmethod
-    def get_count_key(cls, obj, attr):
-        return '{}.{}:{}'.format(obj.__class__.__name__, attr, obj.id)
+    def get_count_key(cls, model_name, object_id, attr):
+        return '{}.{}:{}'.format(model_name, attr, object_id)
 
     @classmethod
     def _load_count_to_cache(cls, obj, attr, key, conn):
@@ -71,19 +71,21 @@ class RedisHelper:
         return count
 
     @classmethod
-    def incr_count(cls, obj, attr):
+    def incr_count(cls, queryset_of_one, model_name, object_id, attr):
         conn = RedisClient.get_connection()
-        key = cls.get_count_key(obj, attr)
+        key = cls.get_count_key(model_name, object_id, attr)
         if not conn.exists(key):
+            obj = queryset_of_one.first()
             cls._load_count_to_cache(obj, attr, key, conn)
             return
         return conn.incr(key)
 
     @classmethod
-    def decr_count(cls, obj, attr):
+    def decr_count(cls, queryset_of_one, model_name, object_id, attr):
         conn = RedisClient.get_connection()
-        key = cls.get_count_key(obj, attr)
+        key = cls.get_count_key(model_name, object_id, attr)
         if not conn.exists(key):
+            obj = queryset_of_one.first()
             cls._load_count_to_cache(obj, attr, key, conn)
             return
         return conn.decr(key)
@@ -91,7 +93,7 @@ class RedisHelper:
     @classmethod
     def get_count(cls, obj, attr):
         conn = RedisClient.get_connection()
-        key = cls.get_count_key(obj, attr)
+        key = cls.get_count_key(obj.__class__.__name__, obj.id, attr)
         count = conn.get(key)
         if count is not None:
             return int(count)

@@ -169,7 +169,7 @@ class CommentApiTests(TestCase):
         Tests the comments_count separately cached at redis.
         """
         conn = RedisClient.get_connection()
-        key = RedisHelper.get_count_key(self.tweet, 'comments_count')
+        key = RedisHelper.get_count_key(Tweet.__name__, self.tweet.id, 'comments_count')
         # at first, comments_count is 0
         # view level
         response = self.anonymous_client.get(TWEET_LIST_API, {'user_id': self.linghu.id})

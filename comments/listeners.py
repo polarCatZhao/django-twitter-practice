@@ -19,7 +19,9 @@ def incr_comments_count(sender, instance, created, **kwargs):
     # It's not necessary to invalidate cached tweet in memcached
     # because comments_count will come from the separately cached counts in redis.
     # MemcachedHelper.invalidate_cached_object(Tweet, instance.tweet_id)
-    RedisHelper.incr_count(instance.tweet, 'comments_count')
+    # RedisHelper.incr_count(instance.tweet, 'comments_count')
+    queryset_of_one = Tweet.objects.filter(id=instance.tweet_id)
+    RedisHelper.incr_count(queryset_of_one, Tweet.__name__, instance.tweet_id, 'comments_count')
     # correct denormalized counts only appear in 2 places:
     # tweet table and separately cached counts in redis
 
@@ -34,4 +36,6 @@ def decr_comments_count(sender, instance, **kwargs):
     # It's not necessary to invalidate cached tweet in memcached
     # because comments_count will come from the separately cached counts in redis.
     # MemcachedHelper.invalidate_cached_object(Tweet, instance.tweet_id)
-    RedisHelper.decr_count(instance.tweet, 'comments_count')
+    # RedisHelper.decr_count(instance.tweet, 'comments_count')
+    queryset_of_one = Tweet.objects.filter(id=instance.tweet_id)
+    RedisHelper.decr_count(queryset_of_one, Tweet.__name__, instance.tweet_id, 'comments_count')
