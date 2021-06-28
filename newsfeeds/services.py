@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from friendships.services import FriendshipService
 from newsfeeds.models import NewsFeed
+from newsfeeds.tasks import fanout_newsfeeds_task
 from tweets.models import Tweet
 from twitter.cache import USER_NEWSFEEDS_PATTERN
 from utils.redis_helper import RedisHelper
@@ -13,20 +14,7 @@ class NewsFeedService:
         if tweet.user.profile.is_superstar:
             return
 
-        newsfeeds = [
-            NewsFeed(user=follower, tweet=tweet, created_at=tweet.created_at)
-            for follower in FriendshipService.get_followers(tweet.user)
-        ]
-        newsfeeds.append(NewsFeed(
-            user=tweet.user,
-            tweet=tweet,
-            created_at=tweet.created_at,
-        ))
-        NewsFeed.objects.bulk_create(newsfeeds)
-
-        # bulk create 不会触发 post_save 的 signal， 所以需要手动 push 到 cache 里
-        for newsfeed in newsfeeds:
-            cls.push_newsfeed_to_cache(newsfeed)
+        fanout_newsfeeds_task.delay(tweet.id)
 
     @classmethod
     def inject_newsfeeds(cls, user_id, followed_user_id):
