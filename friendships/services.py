@@ -16,6 +16,11 @@ class FriendshipService:
         return [friendship.from_user for friendship in friendships]
 
     @classmethod
+    def get_follower_ids(cls, to_user_id):
+        friendships = Friendship.objects.filter(to_user_id=to_user_id)
+        return [friendship.from_user_id for friendship in friendships]
+
+    @classmethod
     def get_followed_superstars(cls, user):
         """
         Returns the superstars followed by user.

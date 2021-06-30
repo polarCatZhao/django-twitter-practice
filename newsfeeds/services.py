@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from friendships.services import FriendshipService
 from newsfeeds.models import NewsFeed
-from newsfeeds.tasks import fanout_newsfeeds_task
+from newsfeeds.tasks import fanout_newsfeeds_main_task
 from tweets.models import Tweet
 from twitter.cache import USER_NEWSFEEDS_PATTERN
 from utils.redis_helper import RedisHelper
@@ -14,7 +14,7 @@ class NewsFeedService:
         if tweet.user.profile.is_superstar:
             return
 
-        fanout_newsfeeds_task.delay(tweet.id)
+        fanout_newsfeeds_main_task.delay(tweet.id, tweet.user_id)
 
     @classmethod
     def inject_newsfeeds(cls, user_id, followed_user_id):
