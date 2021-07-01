@@ -1,15 +1,17 @@
-from rest_framework import viewsets, status
 from comments.api.serializers import (
     CommentSerializerForCreate,
     CommentSerializer,
     CommentSerializerForUpdate,
 )
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from utils.permissions import IsObjectOwner
 from comments.models import Comment
-from utils.decorators import required_params
+from django.utils.decorators import method_decorator
 from inbox.services import NotificationService
+from ratelimit.decorators import ratelimit
+from rest_framework import viewsets, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from utils.decorators import required_params
+from utils.permissions import IsObjectOwner
 
 
 class CommentViewSet(viewsets.GenericViewSet):
@@ -24,6 +26,7 @@ class CommentViewSet(viewsets.GenericViewSet):
             return [IsAuthenticated(), IsObjectOwner()]
         return [AllowAny()]
 
+    @method_decorator(ratelimit(key='user', rate='3/s', method='POST', block=True))
     def create(self, request):
         data = {
             'user_id': request.user.id,
@@ -44,6 +47,7 @@ class CommentViewSet(viewsets.GenericViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @method_decorator(ratelimit(key='user', rate='3/s', method='PUT', block=True))
     def update(self, request, *args, **kwargs):
         # POST /api/comments/<pk>/
         comment = self.get_object()
@@ -59,6 +63,7 @@ class CommentViewSet(viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @method_decorator(ratelimit(key='user', rate='5/s', method='DELETE', block=True))
     def destroy(self, request, *args, **kwargs):
         comment = self.get_object()
         deleted, _ = comment.delete()
@@ -67,6 +72,7 @@ class CommentViewSet(viewsets.GenericViewSet):
             'deleted': deleted,
         }, status=status.HTTP_200_OK)
 
+    @method_decorator(ratelimit(key='user', rate='10/s', method='GET', block=True))
     @required_params(params=['tweet_id'])
     def list(self, request):
         queryset = self.get_queryset()
