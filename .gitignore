@@ -2,6 +2,11 @@
 .idea/
 .vagrant/
 media/
+hbase-2.3.5-bin.tar.gz
+hbase-2.3.5/
+jdk-8u291-linux-x64.tar.gz
+thrift-0.14.2.tar.gz
+thrift-0.14.2/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
