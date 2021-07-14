@@ -14,7 +14,7 @@ USER_PROFILE_DETAIL_URL = '/api/profiles/{}/'
 class AccountApiTests(TestCase):
 
     def setUp(self):
-        self.clear_cache()
+        super(AccountApiTests, self).setUp()
         # 这个函数会在每个 test function 执行的时候被执行
         self.client = APIClient()
         self.user = self.create_user(
@@ -129,7 +129,7 @@ class AccountApiTests(TestCase):
 class UserProfileApiTests(TestCase):
 
     def setUp(self):
-        self.clear_cache()
+        super(UserProfileApiTests, self).setUp()
 
     def test_update(self):
         linghu, linghu_client = self.create_user_and_client('linghu')
