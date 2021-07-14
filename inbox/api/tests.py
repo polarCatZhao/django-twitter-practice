@@ -13,7 +13,7 @@ NOTIFICATION_UPDATE_URL = '/api/notifications/{}/'
 class NotificationTests(TestCase):
 
     def setUp(self):
-        self.clear_cache()
+        super(NotificationTests, self).setUp()
         self.linghu, self.linghu_client = self.create_user_and_client('linghu')
         self.dongxie, self.dongxie_client = self.create_user_and_client('dongxie')
         self.dongxie_tweet = self.create_tweet(self.dongxie)
@@ -38,7 +38,7 @@ class NotificationTests(TestCase):
 class NotificationApiTests(TestCase):
 
     def setUp(self):
-        self.clear_cache()
+        super(NotificationApiTests, self).setUp()
         self.linghu, self.linghu_client = self.create_user_and_client('linghu')
         self.dongxie, self.dongxie_client = self.create_user_and_client('dongxie')
         self.linghu_tweet = self.create_tweet(self.linghu)
