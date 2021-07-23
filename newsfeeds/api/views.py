@@ -1,6 +1,7 @@
 from django.utils.decorators import method_decorator
+from gatekeeper.models import GateKeeper
 from newsfeeds.api.serializers import NewsFeedSerializer
-from newsfeeds.models import NewsFeed
+from newsfeeds.models import NewsFeed, HBaseNewsFeed
 from newsfeeds.services import NewsFeedService
 from ratelimit.decorators import ratelimit
 from rest_framework import viewsets
@@ -22,8 +23,12 @@ class NewsFeedViewSet(viewsets.GenericViewSet):
         feeds = NewsFeedService.merge_feeds(normal_feeds, superstar_feeds)
         page = self.paginator.paginate_cached_list(feeds, request)
         if page is None:
-            queryset = NewsFeed.objects.filter(user=request.user)
-            page = self.paginate_queryset(queryset)
+            if GateKeeper.is_switch_on('switch_newsfeed_to_hbase'):
+                page = self.paginator.paginate_hbase(HBaseNewsFeed, (request.user.id,), request)
+            else:
+                queryset = NewsFeed.objects.filter(user=request.user)
+                page = self.paginate_queryset(queryset)
+
         serializer = NewsFeedSerializer(
             page,
             many=True,

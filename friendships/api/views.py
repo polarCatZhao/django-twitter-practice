@@ -8,7 +8,6 @@ from friendships.api.serializers import (
 from friendships.models import HBaseFollowing, HBaseFollower, Friendship
 from friendships.services import FriendshipService
 from gatekeeper.models import GateKeeper
-from newsfeeds.services import NewsFeedService
 from ratelimit.decorators import ratelimit
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -41,7 +40,7 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         instance = serializer.save()
-        NewsFeedService.inject_newsfeeds(request.user.id, pk)
+        # NewsFeedService.inject_newsfeeds(request.user.id, pk)
         return Response(
             FollowingSerializer(instance, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
@@ -57,7 +56,7 @@ class FriendshipViewSet(viewsets.GenericViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         deleted = FriendshipService.unfollow(request.user.id, int(pk))
-        NewsFeedService.remove_newsfeeds(request.user.id, pk)
+        # NewsFeedService.remove_newsfeeds(request.user.id, pk)
         return Response({'success': True, 'deleted': deleted}, status=status.HTTP_200_OK)
 
     @action(methods=['GET'], detail=True, permission_classes=[AllowAny])
