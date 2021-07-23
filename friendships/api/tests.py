@@ -144,47 +144,47 @@ class FriendshipApiTests(TestCase):
             'dongxie_follower0',
         )
 
-    def test_follow_inject_newsfeeds(self):
-        # at first, Teresa's newsfeeds is empty
-        response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['results']), 0)
+    # def test_follow_inject_newsfeeds(self):
+    #     # at first, Teresa's newsfeeds is empty
+    #     response = self.teresa_client.get(NEWSFEED_URL)
+    #     self.assertEqual(len(response.data['results']), 0)
+    #
+    #     # Teresa followed John
+    #     response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
+    #     self.assertEqual(response.status_code, 201)
+    #
+    #     # John's tweets are injected to Teresa's newsfeeds
+    #     response = self.teresa_client.get(NEWSFEED_URL)
+    #     self.assertEqual(len(response.data['results']), 2)
+    #     self.assertEqual(
+    #         response.data['results'][0]['tweet']['id'],
+    #         self.john_tweets[1].id,
+    #     )
+    #     self.assertEqual(
+    #         response.data['results'][1]['tweet']['id'],
+    #         self.john_tweets[0].id,
+    #     )
 
-        # Teresa followed John
-        response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
-        self.assertEqual(response.status_code, 201)
-
-        # John's tweets are injected to Teresa's newsfeeds
-        response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['results']), 2)
-        self.assertEqual(
-            response.data['results'][0]['tweet']['id'],
-            self.john_tweets[1].id,
-        )
-        self.assertEqual(
-            response.data['results'][1]['tweet']['id'],
-            self.john_tweets[0].id,
-        )
-
-    def test_unfollow_remove_newsfeeds(self):
-        # Teresa followed John
-        response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
-        self.assertEqual(response.status_code, 201)
-
-        # John posted a tweet
-        response = self.john_client.post(POST_TWEET_URL, {'content': 'nothing'})
-        self.assertEqual(response.status_code, 201)
-
-        # Teresa's newsfeed should have 3 tweets
-        response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['results']), 3)
-
-        # Teresa unfollowed John
-        response = self.teresa_client.post(UNFOLLOW_URL.format(self.john.id))
-        self.assertEqual(response.status_code, 200)
-
-        # Teresa's newsfeed should be empty
-        response = self.teresa_client.get(NEWSFEED_URL)
-        self.assertEqual(len(response.data['results']), 0)
+    # def test_unfollow_remove_newsfeeds(self):
+    #     # Teresa followed John
+    #     response = self.teresa_client.post(FOLLOW_URL.format(self.john.id))
+    #     self.assertEqual(response.status_code, 201)
+    #
+    #     # John posted a tweet
+    #     response = self.john_client.post(POST_TWEET_URL, {'content': 'nothing'})
+    #     self.assertEqual(response.status_code, 201)
+    #
+    #     # Teresa's newsfeed should have 3 tweets
+    #     response = self.teresa_client.get(NEWSFEED_URL)
+    #     self.assertEqual(len(response.data['results']), 3)
+    #
+    #     # Teresa unfollowed John
+    #     response = self.teresa_client.post(UNFOLLOW_URL.format(self.john.id))
+    #     self.assertEqual(response.status_code, 200)
+    #
+    #     # Teresa's newsfeed should be empty
+    #     response = self.teresa_client.get(NEWSFEED_URL)
+    #     self.assertEqual(len(response.data['results']), 0)
 
     def test_followers_pagination(self):
         page_size = EndlessPagination.page_size

@@ -8,7 +8,8 @@ class HBaseClient:
 
     @classmethod
     def get_connection(cls):
-        if cls.conn:
-            return cls.conn
-        cls.conn = happybase.Connection(settings.HBASE_HOST)
+        try:
+            cls.conn.tables()
+        except:
+            cls.conn = happybase.Connection(settings.HBASE_HOST)
         return cls.conn
